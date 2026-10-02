@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fulfillment Hub</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--text:#1c2430;--mute:#6b7686;--line:#e2e6ec;--acc:#2563eb;--red:#c62828;--redbg:#fde8e8;--amb:#b26a00;--ambbg:#fff2d9;--grn:#1b7f3b;--grnbg:#e2f5e8;--gry:#eef0f3;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12161c;--card:#1b212a;--text:#e8ecf2;--mute:#94a0b1;--line:#2b3340;--acc:#6d9cff;--red:#ff8a80;--redbg:#3a1f1f;--amb:#ffc46b;--ambbg:#3a2e17;--grn:#7ee29a;--grnbg:#173323;--gry:#242b36}}
+:root[data-theme="dark"]{--bg:#12161c;--card:#1b212a;--text:#e8ecf2;--mute:#94a0b1;--line:#2b3340;--acc:#6d9cff;--red:#ff8a80;--redbg:#3a1f1f;--amb:#ffc46b;--ambbg:#3a2e17;--grn:#7ee29a;--grnbg:#173323;--gry:#242b36}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 16px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+header h1{font-size:16px;margin:0 8px 0 0}
+nav{display:flex;gap:6px;flex-wrap:wrap}
+nav button,.btn{border:1px solid var(--line);background:var(--card);color:var(--text);padding:7px 12px;border-radius:8px;font:inherit;cursor:pointer}
+nav button.on,.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.spacer{flex:1}
+main{padding:16px;max-width:1200px;margin:auto}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.kpi b{display:block;font-size:28px}.kpi span{color:var(--mute)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:560px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--mute);font-weight:600;font-size:12px}
+.tag{display:inline-block;padding:2px 8px;border-radius:99px;font-size:12px;font-weight:600;background:var(--gry);color:var(--mute)}
+.tag.red{background:var(--redbg);color:var(--red)}.tag.amb{background:var(--ambbg);color:var(--amb)}.tag.grn{background:var(--grnbg);color:var(--grn)}
+.split{display:grid;grid-template-columns:minmax(260px,340px) 1fr;gap:14px}
+@media (max-width:720px){.split{grid-template-columns:1fr}}
+.q{padding:10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;cursor:pointer;background:var(--card)}
+.q.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+.q div{display:flex;justify-content:space-between;gap:8px}.q small{color:var(--mute)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+h2{font-size:15px;margin:0 0 10px}
+.issue{padding:10px 0;border-bottom:1px solid var(--line);display:flex;gap:12px;justify-content:space-between;align-items:flex-start}
+.issue p{margin:2px 0 0;color:var(--mute)}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--text);color:var(--bg);padding:8px 16px;border-radius:99px;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.show{opacity:1}
+.mute{color:var(--mute)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Fulfillment Hub</h1>
+  <nav id="nav"></nav>
+  <span class="spacer"></span>
+  <button class="btn" id="reset">Reset demo data</button>
+</header>
+<main id="app"></main>
+<div id="toast"></div>
+<script>
+const FLOW=["Received","Processing","Picking","Packing","Staging","Shipped"];
+const PICK={Delhivery:"10:30",Ekart:"13:00",Bluedart:"16:00"};
+const TIER={Delhivery:"Standard",Ekart:"Standard",Bluedart:"Priority"};
+// due = today + day offset + HH:MM (demo dates are shifted to "today" so SLA status is meaningful)
+const SEED={
+ orders:[["ORD-1001","R. Sharma","Yes","Picking",0,"17:30","Bluedart"],["ORD-1002","A. Iyer","Yes","Processing",0,"14:00","Bluedart"],["ORD-1003","N. Verma","No","Staging",1,"11:30","Delhivery"],["ORD-1004","S. Reddy","No","Shipped",0,"11:30","Delhivery"],["ORD-1005","K. Bose","Yes","Packing",0,"19:00","Ekart"],["ORD-1006","P. Nair","No","Picking",1,"17:30","Delhivery"],["ORD-1007","T. Gupta","Yes","Processing",0,"16:30","Ekart"],["ORD-1008","M. Rao","No","Received",1,"21:30","Delhivery"],["ORD-1009","J. Singh","Yes","Picking",0,"15:00","Bluedart"],["ORD-1010","D. Kapoor","No","Staging",1,"09:30","Delhivery"],["ORD-1011","L. Mehta","Yes","Processing",0,"18:00","Ekart"],["ORD-1012","V. Pillai","No","Shipped",0,"05:30","Delhivery"],["ORD-1013","H. Joshi","No","Picking",1,"13:30","Ekart"],["ORD-1014","C. Das","Yes","Picking",0,"17:00","Bluedart"]],
+ items:[["ORD-1001","WB-STL-750",2],["ORD-1002","KT-KNF-SET",1],["ORD-1002","KT-CHOP-BRD",1],["ORD-1003","BAG-JUT-TOT",3],["ORD-1004","MUG-CER-01",1],["ORD-1005","LMP-LED-DSK",1],["ORD-1006","STR-GLS-1L",2],["ORD-1007","STR-GLS-1L",1],["ORD-1007","STR-GLS-500",2],["ORD-1008","SPC-RCK-WD",1],["ORD-1009","PAN-NST-24",1],["ORD-1010","BAG-JUT-TOT",1],["ORD-1010","WB-STL-750",1],["ORD-1011","KT-KNF-SET",2],["ORD-1012","MUG-CER-01",2],["ORD-1013","LMP-LED-DSK",2],["ORD-1014","KT-KNF-SET",3]],
+ inv:[["WB-STL-750","Steel Water Bottle 750ml","A-12",42,60,15,"No"],["PAN-NST-24","Non-stick Fry Pan 24cm","A-04",6,22,10,"No"],["KT-KNF-SET","Kitchen Knife Set (5pc)","A-07",2,9,8,"No"],["KT-CHOP-BRD","Bamboo Chopping Board","A-08",18,5,10,"No"],["STR-GLS-1L","Glass Storage Jar 1L","A-15",9,14,12,"Yes"],["STR-GLS-500","Glass Storage Jar 500ml","A-15",31,20,12,"No"],["MUG-CER-01","Ceramic Mug Set (4pc)","A-11",14,8,10,"No"],["LMP-LED-DSK","LED Desk Lamp","A-19",11,3,8,"No"],["BAG-JUT-TOT","Jute Tote Bag","A-02",53,40,15,"No"],["SPC-RCK-WD","Wooden Spice Rack","A-09",4,16,8,"No"]],
+ issues:[["ISS-01","Bluedart missed 16:00 pickup slot","5 staged boxes waiting past scheduled pickup - flag to courier ops.","Open",0,"15:30"],["ISS-02","STR-GLS-1L count mismatch","System shows 9 in stock at Warehouse A but physical check found only 3. Needs recount.","Open",-1,"15:30"],["ISS-03","ORD-0991 wrong variant packed","Customer received 500ml jar instead of 1L. Repack SOP updated.","Resolved",-2,"15:30"]]
+};
+function at(off,hm){const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()+off);const[h,m]=hm.split(":");d.setHours(+h,+m);return d.getTime();}
+function fresh(){return{
+ orders:SEED.orders.map(r=>({OrderID:r[0],Customer:r[1],Priority:r[2],Status:r[3],Due:at(r[4],r[5]),Courier:r[6]})),
+ items:SEED.items.map(r=>({OrderID:r[0],SKU:r[1],Qty:r[2]})),
+ inv:SEED.inv.map(r=>({SKU:r[0],Name:r[1],Bin:r[2],A:r[3],B:r[4],Thr:r[5],Missing:r[6]})),
+ issues:SEED.issues.map(r=>({ID:r[0],Title:r[1],Body:r[2],Status:r[3],TS:at(r[4],r[5])}))};}
+const KEY="fh-state-v1";
+let S;try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
+if(!S||!S.orders)S=fresh();
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+let screen="Dashboard",selId=null,showResolved=false;
+const $=s=>document.querySelector(s);
+const fmt=t=>new Date(t).toLocaleString("en-IN",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit",hour12:false});
+function sla(o){return o.Status==="Shipped"?"Shipped":(o.Due<Date.now()?"Overdue":"On Track")}
+function slaTag(o){const s=sla(o);const c=s==="Overdue"?"red":(s==="On Track"&&o.Priority==="Yes"?"amb":(s==="Shipped"?"grn":""));return `<span class="tag ${c}">${s}</span>`}
+function open(){return S.orders.filter(o=>o.Status!=="Shipped")}
+function queue(){return open().sort((a,b)=>(a.Priority===b.Priority?0:a.Priority==="Yes"?-1:1)||a.Due-b.Due)}
+function low(i){return i.A<i.Thr||i.Missing==="Yes"}
+function nextStatus(s){const i=FLOW.indexOf(s);return FLOW[Math.min(i+1,FLOW.length-1)]}
+function newIssueId(){return "ISS-"+String(S.issues.length+1).padStart(2,"0")}
+function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove("show"),1800)}
+function addIssue(title,body){S.issues.push({ID:newIssueId(),Title:title,Body:body,Status:"Open",TS:Date.now()})}
+
+function vDashboard(){
+ const q=queue();
+ return `<div class="kpis">
+  <div class="kpi"><b>${open().length}</b><span>Open orders</span></div>
+  <div class="kpi"><b>${open().filter(o=>o.Priority==="Yes").length}</b><span>Priority open</span></div>
+  <div class="kpi"><b>${open().filter(o=>sla(o)==="Overdue").length}</b><span>Overdue orders</span></div>
+  <div class="kpi"><b>${S.inv.filter(low).length}</b><span>Stock issues</span></div></div>
+ <div class="card scroll"><table><tr><th>Order</th><th>Customer</th><th>Priority</th><th>Status</th><th>Due</th><th>SLA</th><th>Courier</th></tr>
+ ${q.map(o=>`<tr><td>${o.OrderID}</td><td>${o.Customer}</td><td>${o.Priority==="Yes"?'<span class="tag amb">Priority</span>':'<span class="mute">-</span>'}</td><td>${o.Status}</td><td>${fmt(o.Due)}</td><td>${slaTag(o)}</td><td>${o.Courier}</td></tr>`).join("")}</table></div>`}
+
+function vFloor(){
+ const q=queue();
+ if(!q.find(o=>o.OrderID===selId))selId=q.length?q[0].OrderID:null;
+ const o=S.orders.find(x=>x.OrderID===selId);
+ const list=q.map(x=>`<div class="q ${x.OrderID===selId?"sel":""}" data-sel="${x.OrderID}"><div><b>${x.OrderID}</b>${slaTag(x)}</div><div><small>${x.Customer}${x.Priority==="Yes"?" · Priority":""}</small><small>${x.Status}</small></div></div>`).join("")||'<p class="mute">Queue is empty.</p>';
+ let det='<p class="mute">Select an order.</p>';
+ if(o){const its=S.items.filter(i=>i.OrderID===o.OrderID);const nx=nextStatus(o.Status);
+  det=`<h2>${o.OrderID} · ${o.Customer}</h2>
+  <p>Status: <b>${o.Status}</b> · Due ${fmt(o.Due)} · ${o.Courier} pickup ${PICK[o.Courier]} (${TIER[o.Courier]})</p>
+  <div class="scroll"><table><tr><th>SKU</th><th>Product</th><th>Bin</th><th>Qty</th></tr>${its.map(i=>{const p=S.inv.find(v=>v.SKU===i.SKU)||{};return `<tr><td>${i.SKU}</td><td>${p.Name||""}</td><td>${p.Bin||""}</td><td>${i.Qty}</td></tr>`}).join("")}</table></div>
+  <div class="row"><button class="btn pri" data-act="advance" ${o.Status==="Shipped"?"disabled":""}>Mark ${nx}</button><button class="btn" data-act="report">Report a problem</button></div>`}
+ return `<div class="split"><div><h2>Queue (${q.length})</h2>${list}</div><div class="card">${det}</div></div>`}
+
+function vInventory(){
+ return `<div class="card scroll"><table><tr><th>SKU</th><th>Product</th><th>Bin</th><th>Warehouse A</th><th>Warehouse B</th><th>Reorder at</th><th>Flag</th><th></th></tr>
+ ${S.inv.map(i=>{const can=i.A<i.Thr&&i.B>0;return `<tr><td>${i.SKU}</td><td>${i.Name}</td><td>${i.Bin}</td><td>${i.A<i.Thr?`<span class="tag red">${i.A}</span>`:i.A}</td><td>${i.B}</td><td>${i.Thr}</td><td>${i.Missing==="Yes"?'<span class="tag amb">Missing at count</span>':(i.A<i.Thr?'<span class="tag red">Low stock</span>':'<span class="tag grn">OK</span>')}</td><td>${can?`<button class="btn" data-transfer="${i.SKU}">Request transfer</button>`:""}</td></tr>`}).join("")}</table></div>`}
+
+function vIssues(){
+ const list=S.issues.filter(i=>showResolved?true:i.Status==="Open").sort((a,b)=>b.TS-a.TS);
+ return `<div class="card"><div class="row" style="margin:0 0 8px"><h2 style="margin:0">Issues</h2><span class="spacer"></span><label><input type="checkbox" id="sr" ${showResolved?"checked":""}> Show resolved</label></div>
+ ${list.map(i=>`<div class="issue"><div><b>${i.ID}</b> · ${i.Title} <span class="tag ${i.Status==="Open"?"amb":"grn"}">${i.Status}</span><p>${i.Body}</p><small class="mute">${fmt(i.TS)}</small></div>${i.Status==="Open"?`<button class="btn" data-resolve="${i.ID}">Mark resolved</button>`:""}</div>`).join("")||'<p class="mute">No open issues.</p>'}</div>`}
+
+const VIEWS={Dashboard:vDashboard,"Warehouse Floor":vFloor,Inventory:vInventory,Issues:vIssues};
+function render(){
+ $("#nav").innerHTML=Object.keys(VIEWS).map(k=>`<button data-nav="${k}" class="${k===screen?"on":""}">${k}</button>`).join("");
+ $("#app").innerHTML=VIEWS[screen]();
+}
+document.addEventListener("click",e=>{
+ const t=e.target.closest("[data-nav],[data-sel],[data-act],[data-transfer],[data-resolve],#reset");if(!t)return;
+ if(t.dataset.nav){screen=t.dataset.nav}
+ else if(t.dataset.sel){selId=t.dataset.sel}
+ else if(t.dataset.act==="advance"){const o=S.orders.find(x=>x.OrderID===selId);o.Status=nextStatus(o.Status);save();toast("Order updated")}
+ else if(t.dataset.act==="report"){addIssue("Problem reported on "+selId,"Flagged from the warehouse floor - needs office follow-up.");save();toast("Issue logged")}
+ else if(t.dataset.transfer){const i=S.inv.find(x=>x.SKU===t.dataset.transfer);const m=Math.min(i.Thr-i.A+5,i.B);i.A+=m;i.B-=m;addIssue(`Transferred ${m} x ${i.SKU} to Warehouse A`,"Moved from overflow to bring stock above reorder threshold.");save();toast(`Moved ${m} units`)}
+ else if(t.dataset.resolve){S.issues.find(x=>x.ID===t.dataset.resolve).Status="Resolved";save();toast("Resolved")}
+ else if(t.id==="reset"){S=fresh();save();selId=null;toast("Demo data reset")}
+ render();
+});
+document.addEventListener("change",e=>{if(e.target.id==="sr"){showResolved=e.target.checked;render()}});
+render();
+</script>
+</body>
+</html>
